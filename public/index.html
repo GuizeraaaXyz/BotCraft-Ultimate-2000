@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BotCraft Manager - Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="/socket.io/socket.io.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#0d0f0e;--bg2:#131614;--bg3:#1a1d1b;--bg4:#222623;
+--border:#2c312d;--border2:#3a4039;
+--green:#39ff6a;--green2:#22c94a;--green3:#0d5c25;
+--red:#ff3b3b;--yellow:#ffc233;--blue:#33b5ff;--purple:#b566ff;
+--text:#e8ede9;--text2:#8a9490;--text3:#536058;
+--font-mono:'IBM Plex Mono',monospace;
+--font-head:'Syne',sans-serif;
+}
+body{font-family:var(--font-mono);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--green3);border-radius:2px}
+.layout{display:flex;min-height:100vh}
+.sidebar{width:220px;background:var(--bg2);border-right:1px solid var(--border);position:fixed;height:100vh;overflow-y:auto;display:flex;flex-direction:column;z-index:100}
+.sidebar-logo{padding:20px 18px 16px;border-bottom:1px solid var(--border)}
+.logo-mark{font-family:var(--font-head);font-size:22px;font-weight:800;color:var(--green);letter-spacing:-1px;line-height:1}
+.logo-sub{font-size:10px;color:var(--text3);letter-spacing:3px;text-transform:uppercase;margin-top:2px}
+.logo-ver{font-size:9px;color:var(--text3);margin-top:4px}
+.nav{padding:16px 10px;flex:1}
+.nav-section{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--text3);padding:8px 8px 4px;margin-top:8px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:4px;color:var(--text2);font-size:12px;cursor:pointer;border:none;background:transparent;width:100%;text-align:left;transition:all .15s;margin-bottom:2px}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:var(--green3);color:var(--green);border-left:2px solid var(--green)}
+.nav-item i{width:16px;font-size:12px;text-align:center}
+.sidebar-footer{padding:12px;border-top:1px solid var(--border)}
+.server-status{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:8px 10px}
+.server-status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(57,255,106,.4)}50%{opacity:.8;box-shadow:0 0 0 4px rgba(57,255,106,0)}}
+.server-status-text{font-size:10px;color:var(--text2)}
+.server-ip{font-size:9px;color:var(--text3);margin-top:2px}
+.main{flex:1;margin-left:220px;min-height:100vh;display:flex;flex-direction:column}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50}
+.topbar-title{font-family:var(--font-head);font-size:18px;font-weight:800;color:var(--text);letter-spacing:-.5px}
+.topbar-slash{color:var(--border2);margin:0 2px}
+.topbar-sub{font-size:11px;color:var(--text2)}
+.topbar-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.topbar-time{font-size:11px;color:var(--text3);margin-right:4px}
+.btn{font-family:var(--font-mono);font-size:11px;font-weight:600;padding:7px 14px;border-radius:3px;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--text2);display:inline-flex;align-items:center;gap:6px;transition:all .15s;letter-spacing:.5px;text-transform:uppercase}
+.btn:hover{border-color:var(--green);color:var(--green);background:rgba(57,255,106,.04)}
+.btn-primary{background:var(--green);color:#000;border-color:var(--green);font-weight:700}
+.btn-primary:hover{background:var(--green2);border-color:var(--green2);color:#000}
+.btn-danger{background:rgba(255,59,59,.1);color:var(--red);border-color:rgba(255,59,59,.3)}
+.btn-danger:hover{background:var(--red);color:#fff;border-color:var(--red)}
+.btn-sm{padding:5px 10px;font-size:10px}
+.btn-icon{padding:7px 9px}
+.content{padding:20px 24px;flex:1}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+.stat{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:14px;position:relative;overflow:hidden}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--c,var(--green))}
+.stat-val{font-family:var(--font-head);font-size:28px;font-weight:800;color:var(--c,var(--green));line-height:1}
+.stat-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-top:4px}
+.section-hdr{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.section-hdr h3{font-family:var(--font-head);font-size:14px;font-weight:800;color:var(--text);letter-spacing:-.2px}
+.section-hdr-line{flex:1;height:1px;background:var(--border)}
+.section-hdr-actions{display:flex;gap:6px}
+.bots-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px}
+.bot-card{background:var(--bg2);border:1px solid var(--border);border-radius:4px;overflow:hidden;transition:border-color .15s}
+.bot-card:hover{border-color:var(--green3)}
+.bot-card.online{border-color:var(--green3)}
+.bot-card.captcha{border-color:rgba(255,194,51,.5)}
+.bot-hdr{padding:12px 14px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bot-hdr-name{font-family:var(--font-head);font-size:13px;font-weight:800;flex:1;color:var(--text)}
+.status-pill{font-size:9px;padding:2px 7px;border-radius:2px;font-weight:600;letter-spacing:.5px}
+.s-online{background:rgba(57,255,106,.1);color:var(--green);border:1px solid rgba(57,255,106,.3)}
+.s-offline{background:rgba(83,96,88,.1);color:var(--text3);border:1px solid var(--border)}
+.s-connecting{background:rgba(51,181,255,.1);color:var(--blue);border:1px solid rgba(51,181,255,.3);animation:blink .8s steps(1) infinite}
+.s-kicked{background:rgba(255,59,59,.1);color:var(--red);border:1px solid rgba(255,59,59,.3)}
+.s-captcha{background:rgba(255,194,51,.1);color:var(--yellow);border:1px solid rgba(255,194,51,.4);animation:blink .8s steps(1) infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+.bot-body{padding:12px 14px}
+.bot-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.bot-stat-item{font-size:10px;color:var(--text3);display:flex;align-items:center;gap:6px}
+.bot-stat-item span{color:var(--text2)}
+.bot-stat-item i{font-size:10px;color:var(--text3);width:12px}
+.bot-footer{display:flex;gap:6px;flex-wrap:wrap}
+.bot-btn{font-family:var(--font-mono);font-size:10px;padding:5px 10px;border-radius:2px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);display:inline-flex;align-items:center;gap:5px;transition:all .1s;font-weight:500;letter-spacing:.3px}
+.bot-btn:hover{border-color:var(--green);color:var(--green);background:rgba(57,255,106,.04)}
+.bot-btn-start{border-color:rgba(57,255,106,.3);color:var(--green2)}
+.bot-btn-start:hover{background:var(--green);color:#000;border-color:var(--green)}
+.bot-btn-stop{border-color:rgba(255,59,59,.3);color:var(--red)}
+.bot-btn-stop:hover{background:var(--red);color:#fff;border-color:var(--red)}
+.bot-btn-cfg{border-color:rgba(181,102,255,.3);color:var(--purple)}
+.bot-btn-cfg:hover{background:rgba(181,102,255,.15);border-color:var(--purple);color:var(--purple)}
+.terminal-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:4px;overflow:hidden;margin-top:16px}
+.terminal-hdr{background:var(--bg3);border-bottom:1px solid var(--border);padding:8px 12px;display:flex;align-items:center;gap:8px}
+.term-dot{width:8px;height:8px;border-radius:50%}
+.term-title{font-size:10px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-left:4px}
+.terminal-body{height:140px;overflow-y:auto;padding:10px 12px;font-size:11px;line-height:1.7}
+.log-line{color:var(--text3)}
+.log-line .ts{color:var(--text3)}
+.log-line .msg-ok{color:var(--green)}
+.log-line .msg-err{color:var(--red)}
+.log-line .msg-info{color:var(--blue)}
+.log-line .msg-warn{color:var(--yellow)}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal.open{display:flex}
+.modal-box{background:var(--bg2);border:1px solid var(--border);border-radius:6px;width:90%;max-width:600px;max-height:90vh;overflow-y:auto}
+.modal-hdr{background:var(--bg3);border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;justify-content:space-between}
+.modal-hdr h3{font-family:var(--font-head);font-size:15px;font-weight:800;color:var(--text)}
+.modal-close{background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:2px 6px;border-radius:3px}
+.modal-close:hover{color:var(--text);background:var(--bg4)}
+.modal-body{padding:20px}
+.fgroup{margin-bottom:14px}
+.fgroup label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--text3);margin-bottom:6px}
+.fgroup input,.fgroup select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:9px 12px;outline:none;transition:border-color .15s}
+.fgroup input:focus,.fgroup select:focus{border-color:var(--green2)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cmd-row{display:grid;grid-template-columns:1fr 36px;gap:6px;align-items:center;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:7px 10px;margin-bottom:5px}
+.cmd-row input[type=text]{background:transparent;border:none;color:var(--text);font-family:var(--font-mono);font-size:11px;outline:none;width:100%}
+.page{display:none}
+.page.active{display:block}
+.empty-state{text-align:center;padding:48px 20px;color:var(--text3)}
+.empty-state .ei{font-size:36px;margin-bottom:12px;opacity:.3}
+.empty-state p{font-size:12px;line-height:1.6}
+@media(max-width:700px){
+  .sidebar{width:48px}
+  .sidebar .logo-mark,.sidebar .logo-sub,.sidebar .logo-ver,.sidebar .nav-item span,.sidebar .nav-section,.sidebar-footer .server-ip,.sidebar-footer .server-status-text{display:none}
+  .sidebar .nav-item{padding:10px 14px;justify-content:center}
+  .sidebar .nav-item i{width:auto}
+  .main{margin-left:48px}
+  .content{padding:14px}
+  .bots-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">BC/</div>
+      <div class="logo-sub">BotCraft</div>
+      <div class="logo-ver">v4.0</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-section">Sistema</div>
+      <button class="nav-item active" data-page="dashboard"><i class="fas fa-th"></i><span>Dashboard</span></button>
+      <button class="nav-item" data-page="commands"><i class="fas fa-terminal"></i><span>Comandos</span></button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="server-status">
+        <span class="server-status-dot"></span>
+        <span class="server-status-text">Sistema ativo</span>
+        <div class="server-ip">Auto Bypass ✓</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <span class="topbar-title" id="pgTitle">Dashboard</span>
+        <span class="topbar-slash">/</span>
+        <span class="topbar-sub" id="pgSub">Visão geral dos bots</span>
+      </div>
+      <div class="topbar-actions">
+        <span class="topbar-time" id="clockEl">--:--:--</span>
+        <button class="btn btn-icon" onclick="loadBots()"><i class="fas fa-sync-alt"></i></button>
+        <button class="btn btn-primary" onclick="openModal('newBotModal')"><i class="fas fa-plus"></i> Novo Bot</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="page active" id="pg-dashboard">
+        <div class="stats-row">
+          <div class="stat" style="--c:var(--text2)"><div class="stat-val" id="st-total">0</div><div class="stat-label">Total</div></div>
+          <div class="stat" style="--c:var(--green)"><div class="stat-val" id="st-online">0</div><div class="stat-label">Online</div></div>
+          <div class="stat" style="--c:var(--text3)"><div class="stat-val" id="st-offline">0</div><div class="stat-label">Offline</div></div>
+          <div class="stat" style="--c:var(--blue)"><div class="stat-val" id="st-connecting">0</div><div class="stat-label">Conectando</div></div>
+          <div class="stat" style="--c:var(--red)"><div class="stat-val" id="st-kicked">0</div><div class="stat-label">Kickados</div></div>
+          <div class="stat" style="--c:var(--yellow)"><div class="stat-val" id="st-captcha">0</div><div class="stat-label">Captcha</div></div>
+        </div>
+        <div class="section-hdr">
+          <h3>// BOTS REGISTRADOS</h3>
+          <div class="section-hdr-line"></div>
+          <div class="section-hdr-actions">
+            <button class="btn btn-sm" onclick="startAll()"><i class="fas fa-play"></i> Start All</button>
+            <button class="btn btn-sm btn-danger" onclick="stopAll()"><i class="fas fa-stop"></i> Stop All</button>
+          </div>
+        </div>
+        <div class="bots-grid" id="botsGrid"></div>
+        <div class="terminal-wrap">
+          <div class="terminal-hdr">
+            <div class="term-dot" style="background:#ff3b3b"></div>
+            <div class="term-dot" style="background:#ffc233;margin-left:4px"></div>
+            <div class="term-dot" style="background:#39ff6a;margin-left:4px"></div>
+            <span class="term-title" style="margin-left:8px">system log</span>
+          </div>
+          <div class="terminal-body" id="termLog">
+            <div class="log-line"><span class="msg-info">[SYS] BotCraft Ultimate v4.0 - Dashboard Ativa</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="page" id="pg-commands">
+        <div class="section-hdr"><h3>// GERENCIAR COMANDOS</h3><div class="section-hdr-line"></div></div>
+        <div class="bots-grid" id="cmdBotsGrid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NOVO BOT -->
+<div class="modal" id="newBotModal">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <h3><i class="fas fa-plus" style="color:var(--green);margin-right:8px"></i>Criar Novo Bot</h3>
+      <button class="modal-close" onclick="closeModal('newBotModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="fgroup"><label>Nome *</label><input type="text" id="nb-nome" placeholder="Minerador01"></div>
+        <div class="fgroup"><label>Servidor *</label><input type="text" id="nb-server" placeholder="mc.servidor.com"></div>
+      </div>
+      <div class="form-row">
+        <div class="fgroup"><label>Porta</label><input type="number" id="nb-port" value="25565"></div>
+        <div class="fgroup"><label>Senha</label><input type="password" id="nb-senha" placeholder="••••••••"></div>
+      </div>
+      <div class="form-row">
+        <div class="fgroup"><label>Versão</label>
+          <select id="nb-version">
+            <option value="false">Auto-detect</option>
+            <option value="1.21.4">1.21.4</option>
+            <option value="1.21.1">1.21.1</option>
+            <option value="1.20.4">1.20.4</option>
+            <option value="1.20.1">1.20.1</option>
+            <option value="1.19.4">1.19.4</option>
+          </select>
+        </div>
+        <div class="fgroup"><label>Auto Sequence</label>
+          <select id="nb-auto">
+            <option value="true">Ativado</option>
+            <option value="false">Desativado</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="handleCreateBot()">
+        <i class="fas fa-plus"></i> Criar Bot
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL COMANDOS -->
+<div class="modal" id="commandsModal">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <h3><i class="fas fa-terminal" style="color:var(--green);margin-right:8px"></i>Comandos: <span id="cmdModalName" style="color:var(--green)">—</span></h3>
+      <button class="modal-close" onclick="closeModal('commandsModal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:14px">
+        <div style="font-size:9px;color:var(--green);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px"><i class="fas fa-bolt"></i> Envio Manual</div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="manualCmdInput" placeholder="Digite um comando ou mensagem..."
+            style="flex:1;background:var(--bg4);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:var(--font-mono);font-size:11px;padding:7px 10px;outline:none">
+          <button class="btn btn-primary btn-sm" onclick="sendManualCommand()"><i class="fas fa-paper-plane"></i> Enviar</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--text3)"><i class="fas fa-list"></i> Comandos Automáticos</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" onclick="addCmd()"><i class="fas fa-plus"></i> Adicionar</button>
+          <button class="btn btn-sm btn-danger" onclick="clearAllCmds()"><i class="fas fa-trash"></i> Limpar</button>
+        </div>
+      </div>
+      <div id="cmdList" style="max-height:260px;overflow-y:auto;margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" style="flex:1" onclick="saveCmds()"><i class="fas fa-save"></i> Salvar</button>
+        <button class="btn" style="flex:1" onclick="testCommands()"><i class="fas fa-play"></i> Testar Agora</button>
+      </div>
+      <div class="terminal-wrap" style="margin-top:12px">
+        <div class="terminal-hdr">
+          <div class="term-dot" style="background:#39ff6a"></div>
+          <span class="term-title" style="margin-left:8px">comando log</span>
+        </div>
+        <div class="terminal-body" id="cmdLog">
+          <div class="log-line"><span class="msg-info">Pronto para enviar comandos</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+let socket = null;
+try { socket = io(); } catch(e) { console.error('Socket.IO não disponível'); }
+
+let currentBotId = null;
+let currentCmds  = [];
+
+setInterval(() => {
+  document.getElementById('clockEl').textContent = new Date().toLocaleTimeString('pt-BR');
+}, 1000);
+
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+window.addEventListener('click', e => {
+  if (e.target.classList.contains('modal')) e.target.classList.remove('open');
+});
+
+function esc(s) {
+  return String(s||'').replace(/[&<>"']/g, m =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function statusClass(s, captcha) {
+  if (captcha) return 's-captcha';
+  return {online:'s-online',offline:'s-offline',connecting:'s-connecting',kicked:'s-kicked'}[s]||'s-offline';
+}
+
+function statusText(s, captcha) {
+  if (captcha) return 'CAPTCHA';
+  return {online:'ONLINE',offline:'OFFLINE',connecting:'CONNECTING',kicked:'KICKED'}[s]||String(s).toUpperCase();
+}
+
+function botCard(b) {
+  const hasCaptcha = b.captchaPending;
+  return `<div class="bot-card ${b.status==='online'?'online':''} ${hasCaptcha?'captcha':''}" data-bot-id="${b.id}">
+    <div class="bot-hdr">
+      <div class="bot-hdr-name"><i class="fas fa-robot" style="font-size:10px;margin-right:4px;color:var(--text3)"></i>${esc(b.nome)}</div>
+      <span class="status-pill ${statusClass(b.status, hasCaptcha)}">${statusText(b.status, hasCaptcha)}</span>
+    </div>
+    <div class="bot-body">
+      <div class="bot-stats-grid">
+        <div class="bot-stat-item"><i class="fas fa-server"></i><span>${esc(b.server)}:${b.port||25565}</span></div>
+        <div class="bot-stat-item"><i class="fas fa-code-branch"></i><span>${esc(b.version||'auto')}</span></div>
+        <div class="bot-stat-item"><i class="fas fa-sync-alt"></i><span>Auto: ${b.autoSequence?'ON':'OFF'}</span></div>
+        <div class="bot-stat-item"><i class="fas fa-terminal"></i><span>${b.commandsCount||0} cmds</span></div>
+      </div>
+      <div class="bot-footer">
+        <button class="bot-btn bot-btn-start" data-action="start" data-id="${b.id}"><i class="fas fa-play"></i> Start</button>
+        <button class="bot-btn bot-btn-stop"  data-action="stop"  data-id="${b.id}"><i class="fas fa-stop"></i> Stop</button>
+        <button class="bot-btn"               data-action="toggle" data-id="${b.id}"><i class="fas fa-sync-alt"></i> Auto</button>
+        <button class="bot-btn bot-btn-cfg"   data-action="cmds"  data-id="${b.id}" data-nome="${esc(b.nome)}"><i class="fas fa-terminal"></i> Cmds</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const { action, id, nome } = btn.dataset;
+  if (action === 'start')   startBot(id);
+  if (action === 'stop')    stopBot(id);
+  if (action === 'toggle')  toggleAuto(id);
+  if (action === 'cmds')    openCmdsModal(id, nome);
+});
+
+async function loadBots() {
+  try {
+    const r = await fetch(`${API}/bots`);
+    if (!r.ok) throw new Error('API erro');
+    const bots = await r.json();
+    renderBots(bots);
+    updateStats(bots);
+  } catch(e) {
+    addLog('Erro ao carregar bots', 'err');
+    document.getElementById('botsGrid').innerHTML =
+      '<div class="empty-state"><div class="ei"><i class="fas fa-plug"></i></div><p>Erro ao conectar com API</p></div>';
+  }
+}
+
+function renderBots(bots) {
+  const grid    = document.getElementById('botsGrid');
+  const cmdGrid = document.getElementById('cmdBotsGrid');
+  if (!bots.length) {
+    const e = '<div class="empty-state"><div class="ei"><i class="fas fa-robot"></i></div><p>Nenhum bot criado.</p></div>';
+    grid.innerHTML = e; cmdGrid.innerHTML = e; return;
+  }
+  grid.innerHTML = bots.map(b => botCard(b)).join('');
+  cmdGrid.innerHTML = bots.map(b => `
+    <div class="bot-card">
+      <div class="bot-hdr">
+        <div class="bot-hdr-name">${esc(b.nome)}</div>
+        <span class="status-pill ${statusClass(b.status, b.captchaPending)}">${statusText(b.status, b.captchaPending)}</span>
+      </div>
+      <div class="bot-body">
+        <div class="bot-stats-grid">
+          <div class="bot-stat-item"><i class="fas fa-server"></i><span>${esc(b.server)}</span></div>
+          <div class="bot-stat-item"><i class="fas fa-terminal"></i><span>${b.commandsCount||0} cmds</span></div>
+        </div>
+        <div class="bot-footer">
+          <button class="bot-btn bot-btn-cfg" data-action="cmds" data-id="${b.id}" data-nome="${esc(b.nome)}">
+            <i class="fas fa-edit"></i> Editar Comandos
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateStats(bots) {
+  document.getElementById('st-total').textContent      = bots.length;
+  document.getElementById('st-online').textContent     = bots.filter(b=>b.status==='online').length;
+  document.getElementById('st-offline').textContent    = bots.filter(b=>b.status==='offline').length;
+  document.getElementById('st-connecting').textContent = bots.filter(b=>b.status==='connecting').length;
+  document.getElementById('st-kicked').textContent     = bots.filter(b=>b.status==='kicked').length;
+  document.getElementById('st-captcha').textContent    = bots.filter(b=>b.captchaPending).length;
+}
+
+async function startBot(id) {
+  try { await fetch(`${API}/bot/${id}/start`,{method:'POST'}); addLog(`Iniciando bot ${id}...`,'info'); setTimeout(loadBots,1000); }
+  catch(e) { addLog(`Erro: ${e.message}`,'err'); }
+}
+async function stopBot(id) {
+  try { await fetch(`${API}/bot/${id}/stop`,{method:'POST'}); addLog(`Parando bot ${id}...`,'warn'); setTimeout(loadBots,500); }
+  catch(e) { addLog(`Erro: ${e.message}`,'err'); }
+}
+async function toggleAuto(id) {
+  try { await fetch(`${API}/bot/${id}/toggleAuto`,{method:'POST'}); addLog(`Auto alternado`,'info'); loadBots(); }
+  catch(e) { addLog(`Erro: ${e.message}`,'err'); }
+}
+async function startAll() {
+  if (!confirm('Iniciar TODOS os bots offline?')) return;
+  try { await fetch(`${API}/bots/startAll`,{method:'POST'}); addLog('Iniciando todos...','info'); setTimeout(loadBots,2000); }
+  catch(e) { addLog(`Erro: ${e.message}`,'err'); }
+}
+async function stopAll() {
+  if (!confirm('Parar TODOS os bots?')) return;
+  try { await fetch(`${API}/bots/stopAll`,{method:'POST'}); addLog('Todos parados','warn'); loadBots(); }
+  catch(e) { addLog(`Erro: ${e.message}`,'err'); }
+}
+
+async function handleCreateBot() {
+  const body = {
+    nome:         document.getElementById('nb-nome').value.trim(),
+    server:       document.getElementById('nb-server').value.trim(),
+    port:         parseInt(document.getElementById('nb-port').value)||25565,
+    senha:        document.getElementById('nb-senha').value,
+    version:      document.getElementById('nb-version').value,
+    autoSequence: document.getElementById('nb-auto').value==='true'
+  };
+  if (!body.nome||!body.server) { alert('Nome e servidor são obrigatórios'); return; }
+  try {
+    const r = await fetch(`${API}/bot/create`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d = await r.json();
+    if (d.success) {
+      closeModal('newBotModal'); loadBots(); addLog(`Bot "${body.nome}" criado!`,'ok');
+      ['nb-nome','nb-server','nb-senha'].forEach(id => document.getElementById(id).value='');
+    }
+  } catch(e) { addLog(`Erro: ${e.message}`,'err'); }
+}
+
+async function openCmdsModal(botId, botName) {
+  currentBotId = botId; currentCmds = [];
+  document.getElementById('cmdModalName').textContent = botName;
+  document.getElementById('manualCmdInput').value = '';
+  try {
+    const r = await fetch(`${API}/bot/${botId}`);
+    if (r.ok) { const b = await r.json(); currentCmds = b.commands||[]; }
+  } catch(e) {}
+  renderCmdList();
+  openModal('commandsModal');
+}
+
+function renderCmdList() {
+  const el = document.getElementById('cmdList');
+  if (!currentCmds.length) {
+    el.innerHTML='<div style="text-align:center;padding:20px;font-size:11px;color:var(--text3)">Nenhum comando. Clique em "Adicionar".</div>';
+    return;
+  }
+  el.innerHTML = currentCmds.map((cmd,i)=>`
+    <div class="cmd-row">
+      <input type="text" value="${esc(cmd)}" onchange="currentCmds[${i}]=this.value" placeholder="/comando">
+      <button class="bot-btn bot-btn-stop" style="padding:3px 8px;justify-content:center" onclick="removeCmd(${i})"><i class="fas fa-trash"></i></button>
+    </div>
+  `).join('');
+}
+
+function addCmd() {
+  currentCmds.push(''); renderCmdList();
+  const inputs = document.querySelectorAll('#cmdList .cmd-row input');
+  if (inputs.length) inputs[inputs.length-1].focus();
+}
+function removeCmd(i) { currentCmds.splice(i,1); renderCmdList(); }
+function clearAllCmds() { if(confirm('Limpar TODOS?')){ currentCmds=[]; renderCmdList(); } }
+
+async function saveCmds() {
+  const clean = currentCmds.filter(c=>c.trim());
+  try {
+    await fetch(`${API}/bot/${currentBotId}/commands`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({commands:clean})});
+    addCmdLog(`${clean.length} comando(s) salvos!`,'ok'); closeModal('commandsModal'); loadBots();
+  } catch(e) { addCmdLog(`Erro: ${e.message}`,'err'); }
+}
+
+async function testCommands() {
+  const clean = currentCmds.filter(c=>c.trim());
+  if (!clean.length) { addCmdLog('Nenhum comando','warn'); return; }
+  addCmdLog('Executando teste...','info');
+  for (const cmd of clean) {
+    addCmdLog(`→ ${cmd}`,'info');
+    try { await fetch(`${API}/bot/${currentBotId}/say`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:cmd})}); }
+    catch(e) { addCmdLog(`Erro: ${e.message}`,'err'); }
+    await new Promise(r=>setTimeout(r,2000));
+  }
+  addCmdLog('Concluído!','ok');
+}
+
+function sendManualCommand() {
+  const input = document.getElementById('manualCmdInput');
+  const cmd = input.value.trim();
+  if (!cmd) { addCmdLog('Digite um comando','warn'); return; }
+  addCmdLog(`Enviando: ${cmd}`,'info');
+  fetch(`${API}/bot/${currentBotId}/say`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:cmd})})
+    .then(r=>r.json())
+    .then(d=>{ if(d.success) addCmdLog('✔ Enviado','ok'); else addCmdLog(`Erro: ${d.error}`,'err'); })
+    .catch(e=>addCmdLog(`Erro: ${e.message}`,'err'));
+  input.value='';
+}
+document.getElementById('manualCmdInput').addEventListener('keydown',e=>{ if(e.key==='Enter') sendManualCommand(); });
+
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    item.classList.add('active');
+    const pg = item.dataset.page;
+    document.getElementById(`pg-${pg}`).classList.add('active');
+    const titles = {dashboard:['Dashboard','Visão geral'],commands:['Comandos','Configurar sequências']};
+    const [t,s] = titles[pg]||[pg,''];
+    document.getElementById('pgTitle').textContent = t;
+    document.getElementById('pgSub').textContent   = s;
+    if (pg==='commands') loadBots();
+  });
+});
+
+if (socket) {
+  socket.on('botStatus', data => {
+    addLog(`Bot ${data.nome} → ${data.status}`, 'info');
+    loadBots();
+  });
+
+  socket.on('botLog', data => {
+    // Log individual do bot (opcional)
+  });
+
+  socket.on('botCreated', data => {
+    addLog(`Bot "${data.nome}" criado!`, 'ok');
+    loadBots();
+  });
+
+  socket.on('botUpdated', data => {
+    loadBots();
+  });
+
+  socket.on('allBotsStopped', () => {
+    addLog('Todos os bots foram parados', 'warn');
+    loadBots();
+  });
+
+  socket.on('captchaWaiting', data => {
+    addLog(`⚠️ Bot ${data.nome} aguardando resolução de CAPTCHA (${data.attempts}/3)...`, 'warn');
+    loadBots();
+  });
+}
+
+function addLog(msg, type='info') {
+  const el  = document.getElementById('termLog');
+  const ts  = new Date().toLocaleTimeString('pt-BR');
+  const cls = {ok:'msg-ok',err:'msg-err',warn:'msg-warn',info:'msg-info'}[type]||'msg-info';
+  const div = document.createElement('div');
+  div.className='log-line';
+  div.innerHTML=`<span class="ts">[${ts}]</span> <span class="${cls}">${esc(msg)}</span>`;
+  el.appendChild(div); el.scrollTop=el.scrollHeight;
+  if (el.children.length>100) el.removeChild(el.children[0]);
+}
+
+function addCmdLog(msg, type='info') {
+  const el  = document.getElementById('cmdLog');
+  const ts  = new Date().toLocaleTimeString('pt-BR');
+  const cls = {ok:'msg-ok',err:'msg-err',warn:'msg-warn',info:'msg-info'}[type]||'msg-info';
+  const div = document.createElement('div');
+  div.className='log-line';
+  div.innerHTML=`<span class="ts">[${ts}]</span> <span class="${cls}">${esc(msg)}</span>`;
+  el.appendChild(div); el.scrollTop=el.scrollHeight;
+  if (el.children.length>50) el.removeChild(el.children[0]);
+}
+
+loadBots();
+setInterval(loadBots, 30000);
+</script>
+</body>
+</html>
